@@ -3,7 +3,8 @@ local _, ns = ...
 local HEADER = 32
 local FOOTER = 24
 local MARGIN = 6
-local STANDALONE_SCALE = 0.8
+local WINDOW_HEIGHT = 0.72
+local WINDOW_ASPECT = 1.4
 local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 
 local ART_W, ART_H, TILE = ns.ART_WIDTH, ns.ART_HEIGHT, ns.TILE_SIZE
@@ -26,10 +27,51 @@ local function restoreMinimapMask()
 	pcall(Minimap.SetMaskTexture, Minimap, "ui-hud-minimap-frame-generic-mask")
 end
 
+-- Minimap addons often hook Minimap:SetPoint and friends to pin it in place, so
+-- the live view calls the widget's own methods, which those hooks don't wrap.
+local raw = setmetatable({}, { __index = function(t, name)
+	local methods = getmetatable(Minimap)
+	methods = methods and methods.__index
+	local fn = type(methods) == "table" and methods[name] or Minimap[name]
+	t[name] = fn
+	return fn
+end })
+
+local function liveSide()
+	return math.max(50, liveHolder:GetWidth() - 4)
+end
+
 local function sizeMinimap()
 	if not borrowed then return end
-	local side = math.max(50, liveHolder:GetWidth() - 4)
-	Minimap:SetSize(side, side)
+	local side = liveSide()
+	raw.SetSize(Minimap, side, side)
+end
+
+local function placeMinimap()
+	raw.SetParent(Minimap, liveHolder)
+	raw.ClearAllPoints(Minimap)
+	raw.SetPoint(Minimap, "CENTER", liveHolder, "CENTER")
+	raw.SetScale(Minimap, 1)
+	raw.SetFrameStrata(Minimap, liveHolder:GetFrameStrata())
+	raw.SetFrameLevel(Minimap, liveHolder:GetFrameLevel() + 2)
+	sizeMinimap()
+end
+
+local function minimapInPlace()
+	if Minimap:GetParent() ~= liveHolder or Minimap:GetNumPoints() ~= 1 then return false end
+	local _, relativeTo = Minimap:GetPoint(1)
+	if relativeTo ~= liveHolder then return false end
+	local w = Minimap:GetWidth()
+	return math.abs(w - liveSide()) < 1
+end
+
+-- Puts the minimap back each frame if something else moved it.
+local function keepMinimap()
+	if borrowed and not minimapInPlace() then
+		ns.minimapMoves = (ns.minimapMoves or 0) + 1
+		placeMinimap()
+		pcall(raw.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
+	end
 end
 
 local function borrowMinimap()
@@ -47,20 +89,16 @@ local function borrowMinimap()
 		borrowed.points[i] = { Minimap:GetPoint(i) }
 	end
 
-	Minimap:SetParent(liveHolder)
-	Minimap:ClearAllPoints()
-	Minimap:SetPoint("CENTER", liveHolder, "CENTER")
-	Minimap:SetScale(1)
-	Minimap:SetFrameStrata(liveHolder:GetFrameStrata())
-	Minimap:SetFrameLevel(liveHolder:GetFrameLevel() + 2)
-	pcall(Minimap.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
-	sizeMinimap()
+	placeMinimap()
+	pcall(raw.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
+	liveHolder:SetScript("OnUpdate", keepMinimap)
 	local zoom = ns.db.liveZoom or 0
 	if zoom < Minimap:GetZoomLevels() then Minimap:SetZoom(zoom) end
 end
 
 local function returnMinimap()
 	if not borrowed then return end
+	liveHolder:SetScript("OnUpdate", nil)
 	ns.db.liveZoom = Minimap:GetZoom()
 	Minimap:SetParent(borrowed.parent)
 	Minimap:ClearAllPoints()
@@ -97,22 +135,28 @@ local function nextStrata(strata)
 	return "DIALOG"
 end
 
+local function windowSize()
+	local h = math.floor(UIParent:GetHeight() * WINDOW_HEIGHT)
+	return math.floor(h * WINDOW_ASPECT), h
+end
+
+-- Opened with M: over the world map, at least as big as it, so it covers it.
 local function dock()
 	frame:Hide()
-	frame:SetParent(WorldMapFrame)
+	local w, h = windowSize()
 	frame:ClearAllPoints()
-	frame:SetAllPoints(WorldMapFrame.ScrollContainer or WorldMapFrame)
+	frame:SetSize(math.max(w, WorldMapFrame:GetWidth()), math.max(h, WorldMapFrame:GetHeight()))
+	frame:SetPoint("CENTER", WorldMapFrame, "CENTER")
 	frame:SetFrameStrata(nextStrata(WorldMapFrame:GetFrameStrata()))
-	frame:SetFrameLevel(10)
 	state.docked = true
 end
 
 local function undock()
 	frame:Hide()
-	frame:SetParent(UIParent)
+	local w, h = windowSize()
 	frame:ClearAllPoints()
-	frame:SetPoint("CENTER")
-	frame:SetSize(ART_W * STANDALONE_SCALE + MARGIN * 2, ART_H * STANDALONE_SCALE + HEADER + FOOTER + MARGIN)
+	frame:SetSize(w, h)
+	frame:SetPoint("CENTER", UIParent, "CENTER")
 	frame:SetFrameStrata("HIGH")
 	state.docked = false
 end
@@ -388,7 +432,7 @@ local function create()
 	youDot:Hide()
 
 	liveHolder = CreateFrame("Frame", nil, content)
-	liveHolder:SetPoint("CENTER")
+	liveHolder:SetPoint("TOPLEFT")
 	liveHolder:EnableMouseWheel(true)
 	liveHolder:SetScript("OnMouseWheel", function(_, delta)
 		if not borrowed then return end
@@ -397,7 +441,11 @@ local function create()
 	end)
 	local liveBorder = liveHolder:CreateTexture(nil, "BACKGROUND")
 	liveBorder:SetAllPoints()
-	liveBorder:SetColorTexture(0.35, 0.3, 0.2, 1)
+	liveBorder:SetColorTexture(0, 0, 0, 1)
+	local liveMissing = liveHolder:CreateFontString(nil, "BORDER", "GameFontDisable")
+	liveMissing:SetPoint("CENTER")
+	liveMissing:SetWidth(260)
+	liveMissing:SetText("Your minimap should appear here. If it stays empty, another addon is holding it: type /dmap debug and send the output.")
 
 	bossText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	bossText:SetPoint("TOPRIGHT", -8, -8)

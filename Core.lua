@@ -386,6 +386,16 @@ function commands.debug()
 	end
 	ns.Print("Room:", tostring(room))
 	ns.Print("GetFileIDFromPath:", GetFileIDFromPath and "yes" or "missing")
+	if Minimap then
+		local function frameName(f)
+			if type(f) ~= "table" then return tostring(f) end
+			return f.GetName and f:GetName() or "unnamed"
+		end
+		local point, relativeTo = Minimap:GetPoint(1)
+		ns.Print(("Minimap: parent %s, anchored %s to %s, size %d, times put back %d"):format(
+			frameName(Minimap:GetParent()), tostring(point), frameName(relativeTo),
+			Minimap:GetWidth() or 0, ns.minimapMoves or 0))
+	end
 end
 
 function commands.help()
