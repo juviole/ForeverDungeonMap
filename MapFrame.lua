@@ -78,13 +78,20 @@ local function sizeMinimap()
 	C_Timer.After(0, redrawMinimap)
 end
 
+local function wantedStrata()
+	local strata = liveHolder:GetFrameStrata()
+	return variant.strataUp and nextStrata(strata) or strata
+end
+
 local function placeMinimap()
 	raw.SetParent(Minimap, liveHolder)
 	raw.ClearAllPoints(Minimap)
 	raw.SetPoint(Minimap, "CENTER", liveHolder, "CENTER")
 	raw.SetScale(Minimap, 1)
-	local strata = liveHolder:GetFrameStrata()
-	raw.SetFrameStrata(Minimap, variant.strataUp and nextStrata(strata) or strata)
+	-- A locked strata or level makes SetFrameStrata and SetFrameLevel do nothing.
+	if raw.SetFixedFrameStrata then raw.SetFixedFrameStrata(Minimap, false) end
+	if raw.SetFixedFrameLevel then raw.SetFixedFrameLevel(Minimap, false) end
+	raw.SetFrameStrata(Minimap, wantedStrata())
 	raw.SetFrameLevel(Minimap, liveHolder:GetFrameLevel() + 2)
 	raw.SetAlpha(Minimap, 1)
 	raw.Show(Minimap)
@@ -99,6 +106,7 @@ local function minimapInPlace()
 	local _, relativeTo = Minimap:GetPoint(1)
 	if relativeTo ~= liveHolder then return false end
 	if not Minimap:IsShown() or Minimap:GetAlpha() < 1 then return false end
+	if Minimap:GetFrameStrata() ~= wantedStrata() then return false end
 	local w = Minimap:GetWidth()
 	return math.abs(w - liveSide()) < 1
 end
@@ -127,6 +135,8 @@ local function borrowMinimap()
 	end
 
 	borrowed.alpha = Minimap:GetAlpha()
+	borrowed.fixedStrata = Minimap.IsFixedFrameStrata and Minimap:IsFixedFrameStrata()
+	borrowed.fixedLevel = Minimap.IsFixedFrameLevel and Minimap:IsFixedFrameLevel()
 	placeMinimap()
 	liveHolder:SetScript("OnUpdate", keepMinimap)
 	local zoom = ns.db.liveZoom or 0
@@ -148,6 +158,8 @@ local function returnMinimap()
 	Minimap:SetFrameLevel(borrowed.level)
 	Minimap:SetZoom(borrowed.zoom)
 	Minimap:SetAlpha(borrowed.alpha or 1)
+	if borrowed.fixedStrata and Minimap.SetFixedFrameStrata then Minimap:SetFixedFrameStrata(true) end
+	if borrowed.fixedLevel and Minimap.SetFixedFrameLevel then Minimap:SetFixedFrameLevel(true) end
 	borrowed = nil
 	restoreMinimapMask()
 end
