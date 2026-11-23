@@ -4,36 +4,26 @@ A dungeon map for WoW Forever (client 1.60.1, interface 16001).
 
 ## Install
 
-Copy the `ForeverDungeonMap` folder into
-`World of Warcraft\_forever_\Interface\AddOns\` and restart the game.
+1. Download this repo (Code > Download ZIP) and unzip it.
+2. Rename the folder to exactly `ForeverDungeonMap`.
+3. Put it in `World of Warcraft\_forever_\Interface\AddOns\`, so the file `AddOns\ForeverDungeonMap\ForeverDungeonMap.toc` exists.
+4. Restart the game, click **AddOns** at character select and check **Forever Dungeon Map**.
 
-## What it does
+## Use
 
-- Press **M** inside a dungeon or raid and the world map opens on that dungeon's map, on the floor you are on.
-- Multi-floor dungeons use the normal floor dropdown. The map follows you to another floor when the room name tells it where you are.
-- Boss markers are numbered skulls. A defeated boss turns grey and gets a check mark. Click a boss to open it in the Adventure Guide.
-- A boss list in the map's bottom-left corner shows defeated bosses and the room you are in.
-- **Ctrl+Left-click** on the map marks the room you are standing in. After that, a "You are here" dot appears whenever you are in that room. A boss you kill in a marked room gets a marker there, so maps the game has no boss data for fill in as you play.
-- The list of defeated bosses resets when you reset instances, enter another dungeon, or stay out of the dungeon for more than an hour.
+Press **M** inside a dungeon or raid. The dungeon map opens over the world map, with two tabs:
 
-## Limits
+- **Live** shows your position: the game's own minimap, enlarged, with your arrow, your group and the walls around you. Scroll to zoom. It works in every dungeon, including Forever's new ones.
+- **Full map** shows the whole dungeon, from the classic map art that comes with the game. Use `<` and `>` for other floors. **Ctrl+Left-click** where you are to mark the room you are in. A yellow dot then shows you there whenever you are in that room, and the map switches to that floor by itself. **Ctrl+Right-click** forgets the room.
 
-The Forever client gives addons no position inside instances, so no addon can draw a live arrow there. The "You are here" dot shows the room you are in, using the rooms you marked.
+The bosses of the run (from the lockout, and every boss you kill) are listed in the top right corner, with defeated ones greyed out.
 
-If the game has no map art for an instance, there is nothing to show. If the addon picks the wrong map, open the right one with `/dmap show <name>` and type `/dmap bind`.
+The X in the corner shows the normal world map underneath. `/dmap` opens the window anywhere, and `/dmap show <name>` shows any dungeon's map.
+
+## Why the full map has no live arrow
+
+The game gives addons no position inside dungeons, and Forever has no built-in dungeon maps to place you on. The minimap is the one thing the game draws with your real position, so the Live tab shows it.
 
 ## Commands
 
-`/dmap help` lists all commands. The main ones are:
-
-| Command | What it does |
-| --- | --- |
-| `/dmap` | Open the map of the dungeon you are in |
-| `/dmap show <name or ID>` | Open any dungeon map |
-| `/dmap list [name]` | List the dungeon maps in the client |
-| `/dmap bind` / `unbind` | Set or clear the map used for this instance |
-| `/dmap auto` | Turn opening the dungeon map on M on or off |
-| `/dmap panel` / `pins` | Show or hide the boss list or the boss markers |
-| `/dmap reset` | Clear the defeated bosses |
-| `/dmap forget` | Forget the rooms marked on the map shown now |
-| `/dmap debug` | Show what the addon detects |
+`/dmap help` lists every command. `/dmap debug` shows what the addon detects, which helps when something is missing.
