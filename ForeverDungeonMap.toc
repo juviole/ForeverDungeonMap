@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: Forever Dungeon Map
+## Notes: Opens the dungeon's map inside instances, with floors, bosses, kill tracking and rooms you mark yourself.
+## Author: ForeverDungeonMap
+## Version: 1.0.0
+## SavedVariables: ForeverDungeonMapDB
+## IconTexture: Interface\Icons\INV_Misc_Map_01
+
+Core.lua
+Pins.lua
+Pins.xml
+Panel.lua
+WorldMap.lua
