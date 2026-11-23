@@ -5,6 +5,7 @@ local FOOTER = 24
 local MARGIN = 6
 local WINDOW_HEIGHT = 0.72
 local WINDOW_ASPECT = 1.4
+local MAX_LIVE_SIZE = 600
 local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 
 local ART_W, ART_H, TILE = ns.ART_WIDTH, ns.ART_HEIGHT, ns.TILE_SIZE
@@ -38,13 +39,24 @@ local raw = setmetatable({}, { __index = function(t, name)
 end })
 
 local function liveSide()
-	return math.max(50, liveHolder:GetWidth() - 4)
+	return math.floor(math.max(50, math.min(MAX_LIVE_SIZE, liveHolder:GetWidth() - 4)))
+end
+
+-- The minimap stays blank after a resize until its zoom changes.
+local function redrawMinimap()
+	if not borrowed then return end
+	local zoom = Minimap:GetZoom()
+	Minimap:SetZoom(zoom > 0 and zoom - 1 or zoom + 1)
+	Minimap:SetZoom(zoom)
+	if Minimap.UpdateBlips then pcall(Minimap.UpdateBlips, Minimap) end
 end
 
 local function sizeMinimap()
 	if not borrowed then return end
 	local side = liveSide()
 	raw.SetSize(Minimap, side, side)
+	redrawMinimap()
+	C_Timer.After(0, redrawMinimap)
 end
 
 local function placeMinimap()
@@ -123,7 +135,7 @@ local function layout()
 	canvas:SetScale(scale)
 	local dot = 22 / scale
 	youDot:SetSize(dot, dot)
-	local side = math.floor(math.min(w, h))
+	local side = math.floor(math.min(w, h, MAX_LIVE_SIZE + 4))
 	liveHolder:SetSize(side, side)
 	sizeMinimap()
 end
