@@ -10,6 +10,13 @@ local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", 
 
 local ART_W, ART_H, TILE = ns.ART_WIDTH, ns.ART_HEIGHT, ns.TILE_SIZE
 
+local function nextStrata(strata)
+	for i, s in ipairs(STRATA) do
+		if s == strata then return STRATA[math.min(i + 1, #STRATA)] end
+	end
+	return "DIALOG"
+end
+
 local frame, content, canvas, tiles, youDot, title
 local floorLabel, prevButton, nextButton, liveTab, mapTab, closeButton
 local footerText, bossText, noArtText, liveHolder
@@ -38,7 +45,19 @@ local raw = setmetatable({}, { __index = function(t, name)
 	return fn
 end })
 
+-- Ways of showing the minimap in the live view, tried in turn with /dmap try.
+local VARIANTS = {
+	{ text = "drawn above the window, square, enlarged" },
+	{ text = "one draw layer higher", strataUp = true },
+	{ text = "keeping its own shape", keepMask = true },
+	{ text = "at its normal size", keepSize = true },
+}
+local variant = VARIANTS[1]
+
 local function liveSide()
+	if variant.keepSize and borrowed then
+		return math.floor(borrowed.width)
+	end
 	return math.floor(math.max(50, math.min(MAX_LIVE_SIZE, liveHolder:GetWidth() - 4)))
 end
 
@@ -64,8 +83,14 @@ local function placeMinimap()
 	raw.ClearAllPoints(Minimap)
 	raw.SetPoint(Minimap, "CENTER", liveHolder, "CENTER")
 	raw.SetScale(Minimap, 1)
-	raw.SetFrameStrata(Minimap, liveHolder:GetFrameStrata())
+	local strata = liveHolder:GetFrameStrata()
+	raw.SetFrameStrata(Minimap, variant.strataUp and nextStrata(strata) or strata)
 	raw.SetFrameLevel(Minimap, liveHolder:GetFrameLevel() + 2)
+	raw.SetAlpha(Minimap, 1)
+	raw.Show(Minimap)
+	if not variant.keepMask then
+		pcall(raw.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
+	end
 	sizeMinimap()
 end
 
@@ -73,16 +98,16 @@ local function minimapInPlace()
 	if Minimap:GetParent() ~= liveHolder or Minimap:GetNumPoints() ~= 1 then return false end
 	local _, relativeTo = Minimap:GetPoint(1)
 	if relativeTo ~= liveHolder then return false end
+	if not Minimap:IsShown() or Minimap:GetAlpha() < 1 then return false end
 	local w = Minimap:GetWidth()
 	return math.abs(w - liveSide()) < 1
 end
 
--- Puts the minimap back each frame if something else moved it.
+-- Puts the minimap back each frame if something else moved or hid it.
 local function keepMinimap()
 	if borrowed and not minimapInPlace() then
 		ns.minimapMoves = (ns.minimapMoves or 0) + 1
 		placeMinimap()
-		pcall(raw.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
 	end
 end
 
@@ -101,8 +126,8 @@ local function borrowMinimap()
 		borrowed.points[i] = { Minimap:GetPoint(i) }
 	end
 
+	borrowed.alpha = Minimap:GetAlpha()
 	placeMinimap()
-	pcall(raw.SetMaskTexture, Minimap, "Interface\\Buttons\\WHITE8X8")
 	liveHolder:SetScript("OnUpdate", keepMinimap)
 	local zoom = ns.db.liveZoom or 0
 	if zoom < Minimap:GetZoomLevels() then Minimap:SetZoom(zoom) end
@@ -122,8 +147,36 @@ local function returnMinimap()
 	Minimap:SetFrameStrata(borrowed.strata)
 	Minimap:SetFrameLevel(borrowed.level)
 	Minimap:SetZoom(borrowed.zoom)
+	Minimap:SetAlpha(borrowed.alpha or 1)
 	borrowed = nil
 	restoreMinimapMask()
+end
+
+function ns.TryNextLiveVariant()
+	local index = 1
+	for i, v in ipairs(VARIANTS) do
+		if v == variant then index = i end
+	end
+	variant = VARIANTS[index % #VARIANTS + 1]
+	if borrowed then
+		returnMinimap()
+		borrowMinimap()
+	end
+	return index % #VARIANTS + 1, #VARIANTS, variant.text
+end
+
+function ns.MinimapState()
+	local function name(f)
+		if type(f) ~= "table" then return tostring(f) end
+		return f.GetName and f:GetName() or "unnamed"
+	end
+	local point, relativeTo = Minimap:GetPoint(1)
+	return ("Minimap: parent %s, anchored %s to %s, size %d, shown %s, visible %s, alpha %.2f, strata %s level %d (window %s %d), put back %d times"):format(
+		name(Minimap:GetParent()), tostring(point), name(relativeTo), Minimap:GetWidth() or 0,
+		tostring(Minimap:IsShown()), tostring(Minimap:IsVisible()), Minimap:GetEffectiveAlpha() or 0,
+		tostring(Minimap:GetFrameStrata()), Minimap:GetFrameLevel() or 0,
+		tostring(liveHolder and liveHolder:GetFrameStrata()), liveHolder and liveHolder:GetFrameLevel() or 0,
+		ns.minimapMoves or 0)
 end
 
 -- Layout ------------------------------------------------------------------------------------
@@ -138,13 +191,6 @@ local function layout()
 	local side = math.floor(math.min(w, h, MAX_LIVE_SIZE + 4))
 	liveHolder:SetSize(side, side)
 	sizeMinimap()
-end
-
-local function nextStrata(strata)
-	for i, s in ipairs(STRATA) do
-		if s == strata then return STRATA[math.min(i + 1, #STRATA)] end
-	end
-	return "DIALOG"
 end
 
 local function windowSize()

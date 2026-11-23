@@ -320,6 +320,7 @@ local HELP = {
 	"/dmap reset - clear the defeated bosses of this run",
 	"/dmap forget - forget the rooms marked for the dungeon shown",
 	"/dmap debug - show what the addon sees",
+	"/dmap try - if the live view stays empty, try the next way of showing the minimap",
 	"On the full map: Ctrl+Left-click marks the room you are in, Ctrl+Right-click forgets it.",
 }
 
@@ -386,16 +387,21 @@ function commands.debug()
 	end
 	ns.Print("Room:", tostring(room))
 	ns.Print("GetFileIDFromPath:", GetFileIDFromPath and "yes" or "missing")
-	if Minimap then
-		local function frameName(f)
-			if type(f) ~= "table" then return tostring(f) end
-			return f.GetName and f:GetName() or "unnamed"
-		end
-		local point, relativeTo = Minimap:GetPoint(1)
-		ns.Print(("Minimap: parent %s, anchored %s to %s, size %d, times put back %d"):format(
-			frameName(Minimap:GetParent()), tostring(point), frameName(relativeTo),
-			Minimap:GetWidth() or 0, ns.minimapMoves or 0))
+	if Minimap and ns.MinimapState then
+		ns.Print(ns.MinimapState())
 	end
+	local loaded = {}
+	for i = 1, C_AddOns and C_AddOns.GetNumAddOns() or 0 do
+		if C_AddOns.IsAddOnLoaded(i) then
+			loaded[#loaded + 1] = (C_AddOns.GetAddOnInfo(i))
+		end
+	end
+	ns.Print("Addons loaded:", table.concat(loaded, ", "))
+end
+
+function commands.try()
+	local index, total, text = ns.TryNextLiveVariant()
+	ns.Print(("Live view, way %d of %d: minimap %s. Open the Live tab and tell me if the map shows."):format(index, total, text))
 end
 
 function commands.help()
